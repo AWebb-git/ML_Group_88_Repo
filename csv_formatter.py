@@ -21,6 +21,10 @@ def main():
                     output_df.at[row_index, key] = business_info[key]
                 else:
                     output_df.at[row_index, key] = "N/A"
+
+            #replace unicode euro and pound with dollars
+            output_df.at[row_index, "price"] = output_df.at[row_index, "price"].replace("\u20ac", "$")
+            output_df.at[row_index, "price"] = output_df.at[row_index, "price"].replace("\u00a3", "$")
             for category in business_info["categories"]:
                 category_name = category["alias"]
                 output_df.at[row_index, category_name] = 1
