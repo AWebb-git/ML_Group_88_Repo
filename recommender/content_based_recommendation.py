@@ -74,6 +74,12 @@ def main():
 
         print("\n\nTRAINING PERFORMANCE\n")
         compare_performance(predictions, train_user_mean_rating, train_df)
+
+        test_content_features = test_df.iloc[:, 5::]
+        knn_values = knn_model.predict(test_content_features)
+        test_df["knn_value"] = knn_values
+        predictions = get_bound_predictions(regression_model,
+                                            test_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
         print("\n\nTEST PERFORMANCE\n")
         compare_performance(predictions, train_user_mean_rating, test_df)
 
