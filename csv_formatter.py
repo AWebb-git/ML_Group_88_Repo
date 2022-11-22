@@ -20,17 +20,18 @@ def main():
                 if key in business_info.keys():
                     output_df.at[row_index, key] = business_info[key]
                 else:
-                    output_df.at[row_index, key] = "N/A"
+                    output_df.at[row_index, key] = ""
 
             #replace unicode euro and pound with dollars
             output_df.at[row_index, "price"] = output_df.at[row_index, "price"].replace("\u20ac", "$")
             output_df.at[row_index, "price"] = output_df.at[row_index, "price"].replace("\u00a3", "$")
+            output_df.at[row_index, "price"] = len(output_df.at[row_index, "price"].replace("\u00a3", "$"))
             for category in business_info["categories"]:
                 category_name = category["alias"]
                 output_df.at[row_index, category_name] = 1
     output_df.fillna(0, inplace=True)
     print(output_df.at[1, "icecream"])
-    output_df.to_csv("formatted_data.csv")
+    output_df.to_csv("formatted_data.csv", index=False)
 
 
 if __name__ == "__main__":
