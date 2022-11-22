@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.neighbors import KNeighborsRegressor
 import random
+import glob
 
 
 def mean_square_error(estimates, targets):
@@ -24,8 +25,8 @@ def compare_performance(predictions, user_mean, df):
     print(f"mean square error dummy business rating: {mse_mean_business_rating}")
 
 
-def get_train_test_df(test_proportion=0.4):
-    df = pd.read_csv("one_user.csv")
+def get_train_test_df(csv, test_proportion=0.4):
+    df = pd.read_csv(csv)
     test = random.sample(range(len(df)), int(len(df)*test_proportion))
     train = list(set(range(len(df))) - set(test))
     df = df.loc[:, (df != 0).any(axis=0)]
@@ -54,24 +55,27 @@ def get_bound_predictions(model, features):
 
 def main():
     random.seed(2e8 + 2e12 + 54056869)
-    train_df, test_df = get_train_test_df()
-    train_user_mean_rating = train_df["user_rating"].mean()
-    train_content_features = train_df.iloc[:, 5::]
-    knn_model = get_knn_model(train_content_features, train_df["user_rating"])
+    user_csvs = glob.glob("user_csvs/*")
+    for csv in user_csvs:
+        print(f"\n\n{csv}\n")
+        train_df, test_df = get_train_test_df(csv)
+        train_user_mean_rating = train_df["user_rating"].mean()
+        train_content_features = train_df.iloc[:, 5::]
+        knn_model = get_knn_model(train_content_features, train_df["user_rating"])
 
-    knn_values = knn_model.predict(train_content_features)
-    train_df["knn_value"] = knn_values
+        knn_values = knn_model.predict(train_content_features)
+        train_df["knn_value"] = knn_values
 
-    regression_model = get_regression_model(train_df.loc[:, ["review_count", "rating", "price", "knn_value"]],
-                                            train_df["user_rating"])
+        regression_model = get_regression_model(train_df.loc[:, ["review_count", "rating", "price", "knn_value"]],
+                                                train_df["user_rating"])
 
-    predictions = get_bound_predictions(regression_model,
-                                        train_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
+        predictions = get_bound_predictions(regression_model,
+                                            train_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
 
-    print("\n\nTRAINING PERFORMANCE\n")
-    compare_performance(predictions, train_user_mean_rating, train_df)
-    print("\n\nTEST PERFORMANCE\n")
-    compare_performance(predictions, train_user_mean_rating, test_df)
+        print("\n\nTRAINING PERFORMANCE\n")
+        compare_performance(predictions, train_user_mean_rating, train_df)
+        print("\n\nTEST PERFORMANCE\n")
+        compare_performance(predictions, train_user_mean_rating, test_df)
 
 
 if __name__ == "__main__":
