@@ -1,9 +1,11 @@
 import csv
 import json
 import pandas
+from pathlib import Path
 
 
 def split_by_user(df: pandas.DataFrame):
+    Path("recommender/user_csvs").mkdir(parents=True, exist_ok=True)
     uids = df["uid"].unique()
 
     # create a data frame dictionary to store your data frames
