@@ -45,10 +45,34 @@ def plotCrossVal(polyOrder, k, F1ScoreKNNPoly, F1ScoreKNNSTDPoly):
     plt.title("F1 Cross-Validation Plot for KNN")
     plt.xlabel('K')
     plt.ylabel('F1 Score')
-    plt.xlim((0,60))
+    plt.xlim((0,110))
     plt.legend()
     plt.show()
 
+    theLabels = []
+    print(polyOrder)
+    for i in range(7):
+        theLabels.append("Ploy = %d"%(polyOrder[i]))
+    #plot the F1 score for all C and poly values
+    for i in range(7):
+        plt.errorbar(k,F1ScoreKNNPoly[i,:],yerr=F1ScoreKNNSTDPoly[i,:], label=theLabels[i])
+        #plt.plot(C,F1ScoreLogisticPoly[i,:], label=theLabels[i])
+    plt.title("F1 Cross-Validation Plot for KNN")
+    plt.xlabel('K')
+    plt.ylabel('F1 Score')
+    plt.xlim((10,60))
+    plt.legend()
+    plt.show()
+
+    plt.errorbar(k,F1ScoreKNNPoly[3,:],yerr=F1ScoreKNNSTDPoly[3,:], label=theLabels[3])
+    plt.errorbar(k,F1ScoreKNNPoly[5,:],yerr=F1ScoreKNNSTDPoly[5,:], label=theLabels[5])
+    plt.errorbar(k,F1ScoreKNNPoly[6,:],yerr=F1ScoreKNNSTDPoly[6,:], label=theLabels[6])
+    plt.title("F1 Cross-Validation Plot for KNN")
+    plt.xlabel('K')
+    plt.ylabel('F1 Score')
+    plt.xlim((10,60))
+    plt.legend()
+    plt.show()
 
 def workOutHyperparameters(X,Y,size):
     polyOrder = [1,2,3,4,5,10,25]
@@ -85,6 +109,22 @@ def workOutHyperparameters(X,Y,size):
     plotCrossVal(polyOrder, k, F1ScoreKNNPoly, F1ScoreKNNSTDPoly)
 
 
+def makeKNNModel(X,Y,size):
+    workOutHyperparameters(X,Y,size)
+
+
+    #now with selected parameters
+    selectedK = 17
+    selectedPolyOrder = 25
+    Xpoly = PolynomialFeatures(selectedPolyOrder).fit_transform(X)
+
+
+    SelectedKNNmodel = KNeighborsClassifier(n_neighbors=selectedK,weights='uniform').fit(Xpoly, Y)
+    KNNPrediction = SelectedKNNmodel.predict(Xpoly)
+
+    return SelectedKNNmodel, KNNPrediction
+
+
 def main():
 
     df = pd.read_csv("formatted_data.csv")
@@ -99,17 +139,9 @@ def main():
     Y = df.iloc[:,1]
     #train_user_mean_rating = df["user_rating"].mean()
     size = len(Y)
-    workOutHyperparameters(X,Y,size)
 
+    SelectedKNNmodel, KNNPrediction =  makeKNNModel(X,Y,size)
 
-    #now with selected parameters
-    #selectedK = 1
-    #selectedPolyOrder = 1
-    #Xpoly = PolynomialFeatures(selectedPolyOrder).fit_transform(X)
-
-
-    #SelectedKNNmodel = KNeighborsClassifier(n_neighbors=selectedK,weights='uniform').fit(Xpoly, Y)
-    #KNNPrediction = SelectedKNNmodel.predict(Xpoly)
     #y_frequentPred = np.argmax(KNNPrediction, axis=1)
     #y_trainFreq = np.argmax(Y, axis=1)
     #print(classification_report(y_trainFreq, y_frequentPred))
