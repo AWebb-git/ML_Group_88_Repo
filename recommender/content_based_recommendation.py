@@ -196,13 +196,18 @@ class ContentBasedComparer:
         return knn_values
 
     def print_f1_curr_user(self, targets):
+        f1 = f1_score([round(prediction) for prediction in self.curr_user_predictions_model], targets, average="micro")
+        print(f"micro avg F1: {f1}")
         f1 = f1_score([round(prediction) for prediction in self.curr_user_predictions_model], targets, average="macro")
-        print(f"F1: {f1}")
+        print(f"macro avg f1F1: {f1}")
 
     def print_f1_all_users(self, targets):
         f1 = f1_score([round(prediction) for prediction in self.all_users_predictions_model], targets,
+                      average="micro")
+        print(f"micro avg F1: {f1}")
+        f1 = f1_score([round(prediction) for prediction in self.all_users_predictions_model], targets,
                       average="macro")
-        print(f"F1: {f1}")
+        print(f"macro avg f1F1: {f1}")
 
 
 def main():
