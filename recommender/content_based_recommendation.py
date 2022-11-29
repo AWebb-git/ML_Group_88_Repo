@@ -104,39 +104,39 @@ class ContentBasedComparer:
 
     def print_curr_user_performance(self, targets_in_order):
         print("\nTRAIN PERFORMANCE")
-        print(f"avg MSE model: {np.mean(self.mse_values_model_curr_user_train)}")
-        print(f"avg MSE knn: {np.mean(self.mse_values_knn_curr_user_train)}")
-        print(f"avg MSE user: {np.mean(self.mse_values_user_avg_curr_user_train)}")
-        print(f"avg MSE business: {np.mean(self.mse_values_business_avg_curr_user_train)}")
+        print(f"MSE model: {np.mean(self.mse_values_model_curr_user_train)}")
+        print(f"MSE knn: {np.mean(self.mse_values_knn_curr_user_train)}")
+        print(f"MSE user: {np.mean(self.mse_values_user_avg_curr_user_train)}")
+        print(f"MSE business: {np.mean(self.mse_values_business_avg_curr_user_train)}")
 
         print("\nTEST PERFORMANCE")
-        print(f"avg MSE model: {np.mean(self.mse_values_model_curr_user_test)}")
-        print(f"avg MSE knn: {np.mean(self.mse_values_knn_curr_user_test)}")
-        print(f"avg MSE user: {np.mean(self.mse_values_user_avg_curr_user_test)}")
-        print(f"avg MSE business: {np.mean(self.mse_values_business_avg_curr_user_test)}")
+        print(f"MSE model: {np.mean(self.mse_values_model_curr_user_test)}")
+        print(f"MSE knn: {np.mean(self.mse_values_knn_curr_user_test)}")
+        print(f"MSE user: {np.mean(self.mse_values_user_avg_curr_user_test)}")
+        print(f"MSE business: {np.mean(self.mse_values_business_avg_curr_user_test)}")
 
         self.print_f1_curr_user(targets_in_order)
         
     def print_all_user_performance(self, targets_in_order):
         print("\nTRAIN AVERAGE")
-        print(f"avg MSE model: {np.mean(self.mse_values_model_all_users_train)}")
-        print(f"avg MSE knn: {np.mean(self.mse_values_knn_all_users_train)}")
-        print(f"avg MSE user: {np.mean(self.mse_values_user_avg_all_users_train)}")
-        print(f"avg MSE business: {np.mean(self.mse_values_business_avg_all_users_train)}")
+        print(f"MSE model: {np.mean(self.mse_values_model_all_users_train)}")
+        print(f"MSE knn: {np.mean(self.mse_values_knn_all_users_train)}")
+        print(f"MSE user: {np.mean(self.mse_values_user_avg_all_users_train)}")
+        print(f"MSE business: {np.mean(self.mse_values_business_avg_all_users_train)}")
 
         print("\nTEST AVERAGE")
-        print(f"avg MSE model: {np.mean(self.mse_values_model_all_users_test)}")
-        print(f"avg MSE knn: {np.mean(self.mse_values_knn_all_users_test)}")
-        print(f"avg MSE user: {np.mean(self.mse_values_user_avg_all_users_test)}")
-        print(f"avg MSE business: {np.mean(self.mse_values_business_avg_all_users_test)}")
+        print(f"MSE model: {np.mean(self.mse_values_model_all_users_test)}")
+        print(f"MSE knn: {np.mean(self.mse_values_knn_all_users_test)}")
+        print(f"MSE user: {np.mean(self.mse_values_user_avg_all_users_test)}")
+        print(f"MSE business: {np.mean(self.mse_values_business_avg_all_users_test)}")
 
         self.print_f1_all_users(targets_in_order)
         
     def get_square_errors(self, estimates, targets):
         if type(estimates) in [float, np.float64]:
-            square_error_values = [np.sqrt((target - estimates) ** 2) for target in targets]
+            square_error_values = [(target - estimates) ** 2 for target in targets]
         else:
-            square_error_values = [np.sqrt((target - estimate) ** 2) for estimate, target in zip(estimates, targets)]
+            square_error_values = [(target - estimate) ** 2 for estimate, target in zip(estimates, targets)]
         return square_error_values
     
     def update_curr_user_train_performance(self, predictions, knn_values, user_mean, df):
@@ -199,7 +199,7 @@ class ContentBasedComparer:
         f1 = f1_score([round(prediction) for prediction in self.curr_user_predictions_model], targets, average="micro")
         print(f"micro avg F1: {f1}")
         f1 = f1_score([round(prediction) for prediction in self.curr_user_predictions_model], targets, average="macro")
-        print(f"macro avg f1F1: {f1}")
+        print(f"macro avg F1: {f1}")
 
     def print_f1_all_users(self, targets):
         f1 = f1_score([round(prediction) for prediction in self.all_users_predictions_model], targets,
@@ -207,7 +207,7 @@ class ContentBasedComparer:
         print(f"micro avg F1: {f1}")
         f1 = f1_score([round(prediction) for prediction in self.all_users_predictions_model], targets,
                       average="macro")
-        print(f"macro avg f1F1: {f1}")
+        print(f"macro avg F1: {f1}")
 
 
 def main():
