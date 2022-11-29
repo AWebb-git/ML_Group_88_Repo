@@ -63,26 +63,47 @@ class ContentBasedComparer:
 
         self.show_performance_summary()
 
-        
     def show_performance_summary(self):
         print("\nTRAIN AVERAGE")
-        print(f"MSE model: {mean_squared_error(self.train_targets, self.model_predictions_train)}")
-        print(f"MSE knn: {mean_squared_error(self.train_targets, self.knn_predictions_train)}")
-        print(f"MSE user: {mean_squared_error(self.train_targets, self.user_avg_train)}")
-        print(f"MSE business: {mean_squared_error(self.train_targets, self.business_avg_train)}")
+        print(f"MSE final output: {mean_squared_error(self.train_targets, self.model_predictions_train)}")
+        print(f"MSE knn step: {mean_squared_error(self.train_targets, self.knn_predictions_train)}")
+        print(f"MSE user average rating: {mean_squared_error(self.train_targets, self.user_avg_train)}")
+        print(f"MSE business average rating: {mean_squared_error(self.train_targets, self.business_avg_train)}")
 
         print("\nTEST AVERAGE")
-        print(f"MSE model: {mean_squared_error(self.test_targets, self.model_predictions_test)}")
-        print(f"MSE knn: {mean_squared_error(self.test_targets, self.knn_predictions_test)}")
-        print(f"MSE user: {mean_squared_error(self.test_targets, self.user_avg_test)}")
-        print(f"MSE business: {mean_squared_error(self.test_targets, self.business_avg_test)}")
+        print(f"MSE final output: {mean_squared_error(self.test_targets, self.model_predictions_test)}")
+        print(f"MSE knn step: {mean_squared_error(self.test_targets, self.knn_predictions_test)}")
+        print(f"MSE user average rating: {mean_squared_error(self.test_targets, self.user_avg_test)}")
+        print(f"MSE business average rating: {mean_squared_error(self.test_targets, self.business_avg_test)}")
 
         f1_micro = f1_score([round(prediction) for prediction in self.model_predictions_test], self.test_targets,
                       average="micro")
         f1_macro = f1_score([round(prediction) for prediction in self.model_predictions_test], self.test_targets,
                       average="macro")
-        print(f"\nmicro avg F1: {f1_micro}")
-        print(f"macro avg F1: {f1_macro}")
+        print(f"\nmicro avg F1 final output: {f1_micro}")
+        print(f"macro avg F1 final output: {f1_macro}")
+
+
+        f1_micro = f1_score([round(prediction) for prediction in self.knn_predictions_test], self.test_targets,
+                      average="micro")
+        f1_macro = f1_score([round(prediction) for prediction in self.knn_predictions_test], self.test_targets,
+                      average="macro")
+        print(f"\nmicro avg F1 knn step: {f1_micro}")
+        print(f"macro avg F1 knn step: {f1_macro}")
+
+        f1_micro = f1_score([round(prediction) for prediction in self.user_avg_test], self.test_targets,
+                            average="micro")
+        f1_macro = f1_score([round(prediction) for prediction in self.user_avg_test], self.test_targets,
+                            average="macro")
+        print(f"\nmicro avg F1 user average rating: {f1_micro}")
+        print(f"macro avg F1 user average rating: {f1_macro}")
+
+        f1_micro = f1_score([round(prediction) for prediction in self.business_avg_test], self.test_targets,
+                            average="micro")
+        f1_macro = f1_score([round(prediction) for prediction in self.business_avg_test], self.test_targets,
+                            average="macro")
+        print(f"\nmicro avg F1 business average rating: {f1_micro}")
+        print(f"macro avg F1 business average rating: {f1_macro}")
     
     def update_train_predictions(self, predictions, knn_values, user_mean, df):
         self.model_predictions_train += predictions
@@ -131,7 +152,6 @@ class ContentBasedComparer:
             knn_value = knn_model.predict(features.loc[index:index, :])
             knn_values.append(knn_value[0])
         return knn_values
-
 
 
 def main():
