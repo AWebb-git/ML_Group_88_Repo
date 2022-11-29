@@ -1,48 +1,37 @@
 import pandas as pd
-import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.model_selection import KFold
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, mean_squared_error
 import random
 import glob
 
 
 class ContentBasedComparer:
     def __init__(self):
-        self.mse_values_model_all_users_train = list()
-        self.mse_values_knn_all_users_train = list()
-        self.mse_values_user_avg_all_users_train = list()
-        self.mse_values_business_avg_all_users_train = list()
-
-        self.mse_values_model_all_users_test = list()
-        self.mse_values_knn_all_users_test = list()
-        self.mse_values_user_avg_all_users_test = list()
-        self.mse_values_business_avg_all_users_test = list()
-
-        self.curr_user_predictions_model = list()
+        self.model_predictions_train = list()
+        self.knn_predictions_train = list()
         
-        self.mse_values_model_curr_user_train = list()
-        self.mse_values_knn_curr_user_train = list()
-        self.mse_values_user_avg_curr_user_train = list()
-        self.mse_values_business_avg_curr_user_train = list()
+        self.business_avg_train = list()
+        self.user_avg_train = list()
+        
+        self.train_targets = list()
 
-        self.mse_values_model_curr_user_test = list()
-        self.mse_values_knn_curr_user_test = list()
-        self.mse_values_user_avg_curr_user_test = list()
-        self.mse_values_business_avg_curr_user_test = list()
+        self.model_predictions_test = list()
+        self.knn_predictions_test = list()
 
-        self.all_users_predictions_model = list()
+        self.business_avg_test = list()
+        self.user_avg_test = list()
+        
+        self.test_targets = list()
     
     def run(self):
         user_csvs = glob.glob("user_csvs/*")
         all_users_targets = list()
         for csv in user_csvs:
-            print(f"\n\n---{csv}---")
-            self.reset_curr_user_performance()
             df = pd.read_csv(csv)
             df = df.loc[:, (df != 0).any(axis=0)]
-            kf = KFold(n_splits=len(df), random_state=1, shuffle=True)
+            kf = KFold(n_splits=5, random_state=1, shuffle=True)
             curr_user_targets = list()
             for train, test in kf.split(df):
                 train_df = df.loc[train, :].reset_index(drop=True)
@@ -61,107 +50,55 @@ class ContentBasedComparer:
                     train_df["user_rating"])
 
                 train_predictions = self.get_bound_predictions(regression_model, train_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
-                self.update_curr_user_train_performance(train_predictions, train_knn_values, train_user_mean_rating, train_df)
+                self.update_train_predictions(train_predictions, train_knn_values, train_user_mean_rating, train_df)
 
                 test_content_features = test_df.iloc[:, 5::]
                 knn_values = knn_model.predict(test_content_features)
+                knn_values = knn_values.tolist()
                 test_df["knn_value"] = knn_values
                 predictions = self.get_bound_predictions(regression_model, test_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
-                self.update_curr_user_test_performance(predictions, knn_values, train_user_mean_rating, test_df)
+                self.update_test_predictions(predictions, knn_values, train_user_mean_rating, test_df)
                 curr_user_targets += test_df["user_rating"].tolist()
-
-            self.print_curr_user_performance(curr_user_targets)
-            self.update_all_user_performance()
             all_users_targets += curr_user_targets
 
-        self.print_all_user_performance(all_users_targets)
+        self.show_performance_summary()
 
-    def reset_curr_user_performance(self):
-        self.mse_values_model_curr_user_train = list()
-        self.mse_values_knn_curr_user_train = list()
-        self.mse_values_user_avg_curr_user_train = list()
-        self.mse_values_business_avg_curr_user_train = list()
-
-        self.mse_values_model_curr_user_test = list()
-        self.mse_values_knn_curr_user_test = list()
-        self.mse_values_user_avg_curr_user_test = list()
-        self.mse_values_business_avg_curr_user_test = list()
-
-        self.curr_user_predictions_model = list()
-
-    def update_all_user_performance(self):
-        self.mse_values_model_all_users_train += self.mse_values_model_curr_user_train
-        self.mse_values_knn_all_users_train += self.mse_values_knn_curr_user_train
-        self.mse_values_user_avg_all_users_train += self.mse_values_user_avg_curr_user_train
-        self.mse_values_business_avg_all_users_train += self.mse_values_business_avg_curr_user_train
         
-        self.mse_values_model_all_users_test += self.mse_values_model_curr_user_test
-        self.mse_values_knn_all_users_test += self.mse_values_knn_curr_user_test
-        self.mse_values_user_avg_all_users_test += self.mse_values_user_avg_curr_user_test
-        self.mse_values_business_avg_all_users_test += self.mse_values_business_avg_curr_user_test
-
-        self.all_users_predictions_model += self.curr_user_predictions_model
-
-    def print_curr_user_performance(self, targets_in_order):
-        print("\nTRAIN PERFORMANCE")
-        print(f"MSE model: {np.mean(self.mse_values_model_curr_user_train)}")
-        print(f"MSE knn: {np.mean(self.mse_values_knn_curr_user_train)}")
-        print(f"MSE user: {np.mean(self.mse_values_user_avg_curr_user_train)}")
-        print(f"MSE business: {np.mean(self.mse_values_business_avg_curr_user_train)}")
-
-        print("\nTEST PERFORMANCE")
-        print(f"MSE model: {np.mean(self.mse_values_model_curr_user_test)}")
-        print(f"MSE knn: {np.mean(self.mse_values_knn_curr_user_test)}")
-        print(f"MSE user: {np.mean(self.mse_values_user_avg_curr_user_test)}")
-        print(f"MSE business: {np.mean(self.mse_values_business_avg_curr_user_test)}")
-
-        self.print_f1_curr_user(targets_in_order)
-        
-    def print_all_user_performance(self, targets_in_order):
+    def show_performance_summary(self):
         print("\nTRAIN AVERAGE")
-        print(f"MSE model: {np.mean(self.mse_values_model_all_users_train)}")
-        print(f"MSE knn: {np.mean(self.mse_values_knn_all_users_train)}")
-        print(f"MSE user: {np.mean(self.mse_values_user_avg_all_users_train)}")
-        print(f"MSE business: {np.mean(self.mse_values_business_avg_all_users_train)}")
+        print(f"MSE model: {mean_squared_error(self.train_targets, self.model_predictions_train)}")
+        print(f"MSE knn: {mean_squared_error(self.train_targets, self.knn_predictions_train)}")
+        print(f"MSE user: {mean_squared_error(self.train_targets, self.user_avg_train)}")
+        print(f"MSE business: {mean_squared_error(self.train_targets, self.business_avg_train)}")
 
         print("\nTEST AVERAGE")
-        print(f"MSE model: {np.mean(self.mse_values_model_all_users_test)}")
-        print(f"MSE knn: {np.mean(self.mse_values_knn_all_users_test)}")
-        print(f"MSE user: {np.mean(self.mse_values_user_avg_all_users_test)}")
-        print(f"MSE business: {np.mean(self.mse_values_business_avg_all_users_test)}")
+        print(f"MSE model: {mean_squared_error(self.test_targets, self.model_predictions_test)}")
+        print(f"MSE knn: {mean_squared_error(self.test_targets, self.knn_predictions_test)}")
+        print(f"MSE user: {mean_squared_error(self.test_targets, self.user_avg_test)}")
+        print(f"MSE business: {mean_squared_error(self.test_targets, self.business_avg_test)}")
 
-        self.print_f1_all_users(targets_in_order)
-        
-    def get_square_errors(self, estimates, targets):
-        if type(estimates) in [float, np.float64]:
-            square_error_values = [(target - estimates) ** 2 for target in targets]
-        else:
-            square_error_values = [(target - estimate) ** 2 for estimate, target in zip(estimates, targets)]
-        return square_error_values
+        f1_micro = f1_score([round(prediction) for prediction in self.model_predictions_test], self.test_targets,
+                      average="micro")
+        f1_macro = f1_score([round(prediction) for prediction in self.model_predictions_test], self.test_targets,
+                      average="macro")
+        print(f"\nmicro avg F1: {f1_micro}")
+        print(f"macro avg F1: {f1_macro}")
     
-    def update_curr_user_train_performance(self, predictions, knn_values, user_mean, df):
-        mse_model = self.get_square_errors(predictions, df["user_rating"])
-        mse_knn = self.get_square_errors(knn_values, df["user_rating"])
-        mse_mean_user_rating = self.get_square_errors(user_mean, df["user_rating"])
-        mse_mean_business_rating = self.get_square_errors(df["rating"], df["user_rating"])
+    def update_train_predictions(self, predictions, knn_values, user_mean, df):
+        self.model_predictions_train += predictions
+        self.knn_predictions_train += knn_values
+        self.user_avg_train += [user_mean] * len(predictions)
+        self.business_avg_train += df["rating"].tolist()
         
-        self.mse_values_model_curr_user_train += mse_model
-        self.mse_values_knn_curr_user_train += mse_knn
-        self.mse_values_user_avg_curr_user_train += mse_mean_user_rating
-        self.mse_values_business_avg_curr_user_train += mse_mean_business_rating
+        self.train_targets += df["user_rating"].tolist()
 
-    def update_curr_user_test_performance(self, predictions, knn_values, user_mean, df):
-        mse_model = self.get_square_errors(predictions, df["user_rating"])
-        mse_knn = self.get_square_errors(knn_values, df["user_rating"])
-        mse_mean_user_rating = self.get_square_errors(user_mean, df["user_rating"])
-        mse_mean_business_rating = self.get_square_errors(df["rating"], df["user_rating"])
-
-        self.mse_values_model_curr_user_test += mse_model
-        self.mse_values_knn_curr_user_test += mse_knn
-        self.mse_values_user_avg_curr_user_test += mse_mean_user_rating
-        self.mse_values_business_avg_curr_user_test += mse_mean_business_rating
-
-        self.curr_user_predictions_model += predictions
+    def update_test_predictions(self, predictions, knn_values, user_mean, df):
+        self.model_predictions_test += predictions
+        self.knn_predictions_test += knn_values
+        self.user_avg_test += [user_mean] * len(predictions)
+        self.business_avg_test += df["rating"].tolist()
+        
+        self.test_targets += df["user_rating"].tolist()
 
     def get_train_test_df(self, csv, test_proportion=0.2):
         df = pd.read_csv(csv)
@@ -192,22 +129,9 @@ class ContentBasedComparer:
         for index in range(len(features)):
             knn_model = self.get_knn_model(features.drop(index), targets.drop(index))
             knn_value = knn_model.predict(features.loc[index:index, :])
-            knn_values.append(knn_value)
+            knn_values.append(knn_value[0])
         return knn_values
 
-    def print_f1_curr_user(self, targets):
-        f1 = f1_score([round(prediction) for prediction in self.curr_user_predictions_model], targets, average="micro")
-        print(f"micro avg F1: {f1}")
-        f1 = f1_score([round(prediction) for prediction in self.curr_user_predictions_model], targets, average="macro")
-        print(f"macro avg F1: {f1}")
-
-    def print_f1_all_users(self, targets):
-        f1 = f1_score([round(prediction) for prediction in self.all_users_predictions_model], targets,
-                      average="micro")
-        print(f"micro avg F1: {f1}")
-        f1 = f1_score([round(prediction) for prediction in self.all_users_predictions_model], targets,
-                      average="macro")
-        print(f"macro avg F1: {f1}")
 
 
 def main():
