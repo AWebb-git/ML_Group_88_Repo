@@ -5,6 +5,8 @@ from sklearn.model_selection import KFold
 from sklearn.metrics import f1_score, mean_squared_error
 import random
 import glob
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 class ContentBasedComparer:
@@ -62,6 +64,7 @@ class ContentBasedComparer:
             all_users_targets += curr_user_targets
 
         self.show_performance_summary()
+        self.plot_roc_curve()
 
     def show_performance_summary(self):
         print("\nTRAIN AVERAGE")
@@ -152,6 +155,53 @@ class ContentBasedComparer:
             knn_value = knn_model.predict(features.loc[index:index, :])
             knn_values.append(knn_value[0])
         return knn_values
+
+    def plot_roc_curve(self):
+        fp_rate_for_models = list()
+        tp_rate_for_models = list()
+        fp_rate_for_models.append([0, 1])
+        tp_rate_for_models.append([0, 1])
+        decision_boundaries = np.linspace(6, -1, 20001)
+        all_classes = sorted(list(set(self.test_targets)))
+        colours = ["#ff0000", "#00ff00", "#0000ff", "#f0f000", "#f000f0", "#00f0f0"]
+        for label in all_classes:
+            tp_rates = list()
+            fp_rates = list()
+            for decision_boundary in decision_boundaries:
+                predictions = [-1 if abs(prediction - target) >= decision_boundary else 1 for prediction, target in zip(self.model_predictions_test, self.test_targets)]
+                targets = [-1 if target != label else 1 for target in self.test_targets]
+                tp = 0
+                tn = 0
+                fp = 0
+                fn = 0
+                for index, prediction in enumerate(predictions):
+                    if prediction == targets[index]:
+                        if prediction == 1:
+                            tp += 1
+                        else:
+                            tn += 1
+                    else:
+                        if prediction == 1:
+                            fp += 1
+                        else:
+                            fn += 1
+                tp_rate = tp / (tp + fn)
+                fp_rate = fp / (fp + tn)
+                tp_rates.append(tp_rate)
+                fp_rates.append(fp_rate)
+            tp_rate_for_models.append(tp_rates)
+            fp_rate_for_models.append(fp_rates)
+        plt.rcParams["figure.figsize"] = (9, 9)
+        plt.title("ROC Curves", size=20)
+        subplot = plt.subplot(111)
+        box = subplot.get_position()
+        subplot.set_position([box.x0, box.y0, box.width, box.height])
+        subplot.set_xlabel("fp rate")
+        subplot.set_ylabel("tp rate")
+        for index in range(0, len(tp_rate_for_models)):
+            subplot.plot(fp_rate_for_models[index], tp_rate_for_models[index], color=colours[index], linewidth=3)
+        plt.legend(["baseline"] + all_classes, bbox_to_anchor=(0.9, 0.1), prop={'size': 12})
+        plt.show()
 
 
 def main():
