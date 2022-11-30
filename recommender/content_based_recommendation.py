@@ -2,7 +2,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.model_selection import KFold
-from sklearn.metrics import f1_score, mean_squared_error
+from sklearn.metrics import f1_score, mean_squared_error, roc_curve, auc
 import random
 import glob
 import numpy as np
@@ -65,6 +65,7 @@ class ContentBasedComparer:
 
         self.show_performance_summary()
         self.plot_roc_curve()
+        self.plot_predictions_vs_targets()
 
     def show_performance_summary(self):
         print("\nTRAIN AVERAGE")
@@ -161,7 +162,7 @@ class ContentBasedComparer:
         tp_rate_for_models = list()
         fp_rate_for_models.append([0, 1])
         tp_rate_for_models.append([0, 1])
-        decision_boundaries = np.linspace(6, -1, 20001)
+        decision_boundaries = np.linspace(0, 5, 2001)
         all_classes = sorted(list(set(self.test_targets)))
         colours = ["#ff0000", "#00ff00", "#0000ff", "#f0f000", "#f000f0", "#00f0f0"]
         for label in all_classes:
@@ -200,7 +201,58 @@ class ContentBasedComparer:
         subplot.set_ylabel("tp rate")
         for index in range(0, len(tp_rate_for_models)):
             subplot.plot(fp_rate_for_models[index], tp_rate_for_models[index], color=colours[index], linewidth=3)
-        plt.legend(["baseline"] + all_classes, bbox_to_anchor=(0.9, 0.1), prop={'size': 12})
+        all_fpr = np.unique(np.concatenate([fp_rate_for_models[i] for i in range(len(all_classes))]))
+
+        # Then interpolate all ROC curves at this points
+        macro_tpr = np.zeros_like(all_fpr)
+        micro_tpr = np.zeros_like(all_fpr)
+        for i in range(len(all_classes)):
+            print(np.all(np.diff(fp_rate_for_models[i]) >= 0))
+            tpr_macro = [tpr / 5 for tpr in tp_rate_for_models[i]]
+            n_targets = len(self.test_targets)
+            n_targets_equal_class = self.test_targets.count(all_classes[i])
+            tpr_micro = [tpr * (n_targets_equal_class / n_targets) for tpr in tp_rate_for_models[i]]
+
+            macro_tpr += np.interp(all_fpr, fp_rate_for_models[i], tpr_macro)
+            micro_tpr += np.interp(all_fpr, fp_rate_for_models[i], tpr_micro)
+
+        fpr = dict()
+        tpr = dict()
+        roc_auc = dict()
+        fpr["macro"] = all_fpr
+        tpr["macro"] = macro_tpr
+        fpr["micro"] = all_fpr
+        tpr["micro"] = micro_tpr
+        roc_auc["macro"] = auc(fpr["macro"], tpr["macro"])
+        plt.plot(
+            fpr["macro"],
+            tpr["macro"],
+            color="#000080",
+            linestyle=":",
+            linewidth=3,
+        )
+        plt.plot(
+            fpr["micro"],
+            tpr["micro"],
+            color="#800000",
+            linestyle=":",
+            linewidth=3,
+        )
+        plt.legend(["baseline"] + all_classes + ["macro avg"] + ["micro avg"], bbox_to_anchor=(0.9, 0.15), prop={'size': 12})
+        plt.show()
+
+    def plot_predictions_vs_targets(self):
+        plt.rcParams["figure.figsize"] = (9, 9)
+        plt.title("Targets vs Predictions", size=20)
+        subplot = plt.subplot(111)
+        box = subplot.get_position()
+        subplot.set_position([box.x0, box.y0, box.width, box.height])
+        subplot.set_xlabel("Prediction")
+        subplot.set_ylabel("Target")
+        plt.scatter(self.model_predictions_test, self.test_targets, color="#0000ff")
+        line = np.polyfit(self.model_predictions_test, self.test_targets, 1)
+        plt.plot(self.model_predictions_test, [line[0]*x+line[1] for x in self.model_predictions_test], color="#ff0000", linewidth=3)
+        plt.legend(["points", "line fit"], bbox_to_anchor=(0.9, 0.1), prop={'size': 12})
         plt.show()
 
 
