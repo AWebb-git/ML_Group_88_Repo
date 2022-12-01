@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.model_selection import KFold
 from sklearn.metrics import f1_score, mean_squared_error, roc_curve, auc
@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 class ContentBasedComparer:
     def __init__(self):
         self.model_predictions_train = list()
+        self.model_probabilities_train = list()
         self.knn_predictions_train = list()
         
         self.business_avg_train = list()
@@ -20,6 +21,7 @@ class ContentBasedComparer:
         self.train_targets = list()
 
         self.model_predictions_test = list()
+        self.model_probabilities_test = list()
         self.knn_predictions_test = list()
 
         self.business_avg_test = list()
@@ -47,19 +49,23 @@ class ContentBasedComparer:
                 train_knn_values = self.get_knn_training_values(train_content_features, train_df["user_rating"])
                 train_df["knn_value"] = train_knn_values
 
-                regression_model = self.get_regression_model(
+                classification_model = self.get_classification_model(
                     train_df.loc[:, ["review_count", "rating", "price", "knn_value"]],
                     train_df["user_rating"])
 
-                train_predictions = self.get_bound_predictions(regression_model, train_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
-                self.update_train_predictions(train_predictions, train_knn_values, train_user_mean_rating, train_df)
+                train_predictions = classification_model.predict(train_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
+                probabilities = self.get_probabilites(classification_model, train_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
+                self.update_train_predictions(train_predictions, train_knn_values, train_user_mean_rating, train_df, probabilities)
 
                 test_content_features = test_df.iloc[:, 5::]
                 knn_values = knn_model.predict(test_content_features)
                 knn_values = knn_values.tolist()
                 test_df["knn_value"] = knn_values
-                predictions = self.get_bound_predictions(regression_model, test_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
-                self.update_test_predictions(predictions, knn_values, train_user_mean_rating, test_df)
+                predictions = classification_model.predict(
+                    test_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
+                probabilities = self.get_probabilites(classification_model,
+                                                      test_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
+                self.update_test_predictions(predictions, knn_values, train_user_mean_rating, test_df, probabilities)
                 curr_user_targets += test_df["user_rating"].tolist()
             all_users_targets += curr_user_targets
 
@@ -109,20 +115,23 @@ class ContentBasedComparer:
         print(f"\nmicro avg F1 business average rating: {f1_micro}")
         print(f"macro avg F1 business average rating: {f1_macro}")
     
-    def update_train_predictions(self, predictions, knn_values, user_mean, df):
-        self.model_predictions_train += predictions
+    def update_train_predictions(self, predictions, knn_values, user_mean, df, probabilities):
+        self.model_predictions_train += predictions.tolist()
         self.knn_predictions_train += knn_values
         self.user_avg_train += [user_mean] * len(predictions)
         self.business_avg_train += df["rating"].tolist()
+        self.model_probabilities_train += probabilities
         
         self.train_targets += df["user_rating"].tolist()
 
-    def update_test_predictions(self, predictions, knn_values, user_mean, df):
-        self.model_predictions_test += predictions
+    def update_test_predictions(self, predictions, knn_values, user_mean, df, probabilites):
+        self.model_predictions_test += predictions.tolist()
         self.knn_predictions_test += knn_values
         self.user_avg_test += [user_mean] * len(predictions)
         self.business_avg_test += df["rating"].tolist()
-        
+
+        self.model_probabilities_test += probabilites
+
         self.test_targets += df["user_rating"].tolist()
 
     def get_train_test_df(self, csv, test_proportion=0.2):
@@ -139,15 +148,20 @@ class ContentBasedComparer:
         knn_model.fit(content_features, targets)
         return knn_model
 
-    def get_regression_model(self, features, targets):
-        model = LinearRegression(copy_X=True)
+    def get_classification_model(self, features, targets):
+        model = LogisticRegression(max_iter=2e16)
         model.fit(features, targets)
         return model
 
-    def get_bound_predictions(self, model, features):
-        predictions = model.predict(features)
-        predictions = [min(max(prediction, 0), 5) for prediction in predictions]
-        return predictions
+    def get_probabilites(self, model, features):
+        return_val = list()
+        probabilities = model.predict_proba(features)
+        for probability_list in probabilities:
+            row = [0] * 5
+            for classification, probability in zip(model.classes_, probability_list):
+                row[classification - 1] = probability
+            return_val.append(row)
+        return return_val
 
     def get_knn_training_values(self, features, targets):
         knn_values = list()
@@ -162,14 +176,14 @@ class ContentBasedComparer:
         tp_rate_for_models = list()
         fp_rate_for_models.append([0, 1])
         tp_rate_for_models.append([0, 1])
-        decision_boundaries = np.linspace(0, 5, 2001)
+        decision_boundaries = np.linspace(1.01, -0.01, 201)
         all_classes = sorted(list(set(self.test_targets)))
         colours = ["#ff0000", "#00ff00", "#0000ff", "#f0f000", "#f000f0", "#00f0f0"]
         for label in all_classes:
             tp_rates = list()
             fp_rates = list()
             for decision_boundary in decision_boundaries:
-                predictions = [-1 if abs(prediction - target) >= decision_boundary else 1 for prediction, target in zip(self.model_predictions_test, self.test_targets)]
+                predictions = [-1 if probability[label - 1] <= decision_boundary else 1 for probability in self.model_probabilities_test]
                 targets = [-1 if target != label else 1 for target in self.test_targets]
                 tp = 0
                 tn = 0
@@ -199,13 +213,16 @@ class ContentBasedComparer:
         subplot.set_position([box.x0, box.y0, box.width, box.height])
         subplot.set_xlabel("fp rate")
         subplot.set_ylabel("tp rate")
+
         for index in range(0, len(tp_rate_for_models)):
             subplot.plot(fp_rate_for_models[index], tp_rate_for_models[index], color=colours[index], linewidth=3)
-        all_fpr = np.unique(np.concatenate([fp_rate_for_models[i] for i in range(len(all_classes))]))
 
-        # Then interpolate all ROC curves at this points
+        #init fpr and tpr lists
+        all_fpr = np.unique(np.concatenate([fp_rate_for_models[i] for i in range(len(all_classes))]))
         macro_tpr = np.zeros_like(all_fpr)
         micro_tpr = np.zeros_like(all_fpr)
+
+        #create averaged tprs
         for i in range(len(all_classes)):
             print(np.all(np.diff(fp_rate_for_models[i]) >= 0))
             tpr_macro = [tpr / 5 for tpr in tp_rate_for_models[i]]
@@ -216,29 +233,9 @@ class ContentBasedComparer:
             macro_tpr += np.interp(all_fpr, fp_rate_for_models[i], tpr_macro)
             micro_tpr += np.interp(all_fpr, fp_rate_for_models[i], tpr_micro)
 
-        fpr = dict()
-        tpr = dict()
-        roc_auc = dict()
-        fpr["macro"] = all_fpr
-        tpr["macro"] = macro_tpr
-        fpr["micro"] = all_fpr
-        tpr["micro"] = micro_tpr
-        roc_auc["macro"] = auc(fpr["macro"], tpr["macro"])
-        plt.plot(
-            fpr["macro"],
-            tpr["macro"],
-            color="#000080",
-            linestyle=":",
-            linewidth=3,
-        )
-        plt.plot(
-            fpr["micro"],
-            tpr["micro"],
-            color="#800000",
-            linestyle=":",
-            linewidth=3,
-        )
-        plt.legend(["baseline"] + all_classes + ["macro avg"] + ["micro avg"], bbox_to_anchor=(0.9, 0.15), prop={'size': 12})
+        plt.plot(all_fpr, macro_tpr, color="#000080", linestyle=":", linewidth=3)
+        plt.plot(all_fpr, micro_tpr, color="#800000", linestyle=":", linewidth=3)
+        plt.legend(["baseline"] + all_classes + ["macro avg"] + ["micro avg"], bbox_to_anchor=(0.9, 0.3), prop={'size': 12})
         plt.show()
 
     def plot_predictions_vs_targets(self):
