@@ -263,13 +263,14 @@ class ContentBasedComparer:
         return knn_values
 
     def plot_roc_curve(self):
+        only_show_micro = True
         fp_rate_for_models = list()
         tp_rate_for_models = list()
         fp_rate_for_models.append([0, 1])
         tp_rate_for_models.append([0, 1])
         decision_boundaries = np.linspace(1.01, -0.01, 201)
         all_classes = sorted(list(set(self.test_targets)))
-        colours = ["#ff0000", "#00ff00", "#0000ff", "#f0f000", "#f000f0", "#00f0f0"]
+        colours = ["#ff0000", "#00ff00", "#f0f000", "#f000f0", "#00f0f0"]
         for label in all_classes:
             tp_rates = list()
             fp_rates = list()
@@ -305,8 +306,11 @@ class ContentBasedComparer:
         subplot.set_xlabel("fp rate")
         subplot.set_ylabel("tp rate")
 
-        for index in range(0, len(tp_rate_for_models)):
-            subplot.plot(fp_rate_for_models[index], tp_rate_for_models[index], color=colours[index], linewidth=3)
+
+        subplot.plot([0, 1], [0, 1], color="#0000ff", linewidth=3)
+        if not only_show_micro:
+            for index in range(0, len(tp_rate_for_models)):
+                subplot.plot(fp_rate_for_models[index], tp_rate_for_models[index], color=colours[index], linewidth=3)
 
         #init fpr and tpr lists
         all_fpr = np.unique(np.concatenate([fp_rate_for_models[i] for i in range(len(all_classes))]))
@@ -324,9 +328,11 @@ class ContentBasedComparer:
             macro_tpr += np.interp(all_fpr, fp_rate_for_models[i], tpr_macro)
             micro_tpr += np.interp(all_fpr, fp_rate_for_models[i], tpr_micro)
 
-        plt.plot(all_fpr, macro_tpr, color="#000080", linestyle=":", linewidth=3)
+        if not only_show_micro:
+            plt.plot(all_fpr, macro_tpr, color="#000080", linestyle=":", linewidth=3)
         plt.plot(all_fpr, micro_tpr, color="#800000", linestyle=":", linewidth=3)
-        plt.legend(["baseline"] + all_classes + ["macro avg"] + ["micro avg"], bbox_to_anchor=(0.9, 0.3), prop={'size': 12})
+        legend = ["baseline", "micro avg"] if only_show_micro else ["baseline"] + all_classes + ["macro avg", "micro avg"]
+        plt.legend(legend, bbox_to_anchor=(0.9, 0.3), prop={'size': 12})
         plt.show()
 
 
