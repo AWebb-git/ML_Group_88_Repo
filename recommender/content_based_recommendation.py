@@ -2,7 +2,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.model_selection import KFold
-from sklearn.metrics import f1_score, mean_squared_error, roc_curve, auc
+from sklearn.metrics import f1_score, mean_squared_error, roc_curve, auc, confusion_matrix
 import random
 import glob
 import numpy as np
@@ -114,6 +114,8 @@ class ContentBasedComparer:
                             average="macro")
         print(f"\nmicro avg F1 business average rating: {f1_micro}")
         print(f"macro avg F1 business average rating: {f1_macro}")
+
+        get_micro_metrics(confusion_matrix(self.test_targets, self.model_predictions_test))
     
     def update_train_predictions(self, predictions, knn_values, user_mean, df, probabilities):
         self.model_predictions_train += predictions.tolist()
@@ -252,6 +254,28 @@ class ContentBasedComparer:
         plt.legend(["points", "line fit"], bbox_to_anchor=(0.9, 0.1), prop={'size': 12})
         plt.show()
 
+
+def get_micro_metrics(confusion_matrix):
+    tp = []
+    fp = []
+    fn = []
+    tn = []
+    ind = [0, 1, 2, 3, 4]
+    for i in ind:
+        ind_i = ind.copy()
+        ind_i.remove(i)
+        tp.append(confusion_matrix[i, i])
+        fp.append(sum(confusion_matrix[ind_i, i]))
+        fn.append(sum(confusion_matrix[i, ind_i]))
+        tn.append(sum(confusion_matrix[ind_i, ind_i]))
+    micro_acc = (sum(tp) + sum(tn))/(sum(tp) + sum(tn) + sum(fp) + sum(fn))
+    micro_prec = sum(tp)/(sum(tp) + sum(fp))
+    micro_tpr = sum(tp)/(sum(tp) + sum(fn))
+    micro_fpr = sum(fp)/(sum(fp) + sum(tn))
+    print(f"micro_acc: {micro_acc}")
+    print(f"micro_prec: {micro_prec}")
+    print(f"micro_tpr: {micro_tpr}")
+    print(f"micro_fpr: {micro_fpr}")
 
 def main():
     content_based_what = ContentBasedComparer()
