@@ -2,7 +2,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.model_selection import KFold
-from sklearn.metrics import f1_score, mean_squared_error, roc_curve, auc, confusion_matrix
+from sklearn.metrics import f1_score, mean_squared_error, confusion_matrix
 from sklearn.preprocessing import PolynomialFeatures
 import random
 import glob
@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 
 class ContentBasedComparer:
     def __init__(self):
+        self.do_cross_val = False
         self.model_predictions_train = list()
         self.model_probabilities_train = list()
         self.knn_predictions_train = list()
@@ -79,11 +80,12 @@ class ContentBasedComparer:
 
         self.show_performance_summary()
         self.plot_roc_curve()
-        self.plot_predictions_vs_targets()
         self.plot_knn_cross_val()
         self.plot_poly_cross_val()
 
     def poly_order_cross_val(self, train_df, test_df):
+        if not self.do_cross_val:
+            return
         poly_order_values = [1, 2, 3]
         for poly_order in poly_order_values:
             if poly_order not in self.poly_order_cross_val_predicitons.keys():
@@ -102,6 +104,8 @@ class ContentBasedComparer:
             self.poly_order_cross_val_predicitons[poly_order].append(predictions.tolist())
 
     def knn_cross_val(self, train_df, test_df):
+        if not self.do_cross_val:
+            return
         k_values = [1, 3, 5, 7, 9, 13, 19]
         for k in k_values:
             if k not in self.knn_cross_val_predictions.keys():
@@ -113,6 +117,8 @@ class ContentBasedComparer:
             self.knn_cross_val_predictions[k].append(predictions.tolist())
 
     def plot_knn_cross_val(self):
+        if not self.do_cross_val:
+            return
         knn_cross_val_mse = dict()
         knn_cross_val_std = dict()
         for k_val, fold_predictions in self.knn_cross_val_predictions.items():
@@ -134,6 +140,8 @@ class ContentBasedComparer:
         plt.show()
 
     def plot_poly_cross_val(self):
+        if not self.do_cross_val:
+            return
         poly_order_cross_val_f1 = dict()
         poly_order_cross_val_f1_std = dict()
         for poly_order, fold_predictions in self.poly_order_cross_val_predicitons.items():
@@ -153,7 +161,6 @@ class ContentBasedComparer:
                      yerr=list(poly_order_cross_val_f1_std.values()), color="#0000ff", linewidth=3)
         plt.legend(["points"], bbox_to_anchor=(0.9, 0.1), prop={'size': 12})
         plt.show()
-
 
     def show_performance_summary(self):
         print("\nTRAIN AVERAGE")
@@ -320,20 +327,6 @@ class ContentBasedComparer:
         plt.plot(all_fpr, macro_tpr, color="#000080", linestyle=":", linewidth=3)
         plt.plot(all_fpr, micro_tpr, color="#800000", linestyle=":", linewidth=3)
         plt.legend(["baseline"] + all_classes + ["macro avg"] + ["micro avg"], bbox_to_anchor=(0.9, 0.3), prop={'size': 12})
-        plt.show()
-
-    def plot_predictions_vs_targets(self):
-        plt.rcParams["figure.figsize"] = (9, 9)
-        plt.title("Targets vs Predictions", size=20)
-        subplot = plt.subplot(111)
-        box = subplot.get_position()
-        subplot.set_position([box.x0, box.y0, box.width, box.height])
-        subplot.set_xlabel("Prediction")
-        subplot.set_ylabel("Target")
-        plt.scatter(self.model_predictions_test, self.test_targets, color="#0000ff")
-        line = np.polyfit(self.model_predictions_test, self.test_targets, 1)
-        plt.plot(self.model_predictions_test, [line[0]*x+line[1] for x in self.model_predictions_test], color="#ff0000", linewidth=3)
-        plt.legend(["points", "line fit"], bbox_to_anchor=(0.9, 0.1), prop={'size': 12})
         plt.show()
 
 
