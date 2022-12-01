@@ -2,7 +2,8 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.model_selection import KFold
-from sklearn.metrics import f1_score, mean_squared_error, roc_curve, auc, confusion_matrix
+from sklearn.metrics import f1_score, mean_squared_error, confusion_matrix
+from sklearn.preprocessing import PolynomialFeatures
 import random
 import glob
 import numpy as np
@@ -11,6 +12,7 @@ import matplotlib.pyplot as plt
 
 class ContentBasedComparer:
     def __init__(self):
+        self.do_cross_val = False
         self.model_predictions_train = list()
         self.model_probabilities_train = list()
         self.knn_predictions_train = list()
@@ -28,6 +30,10 @@ class ContentBasedComparer:
         self.user_avg_test = list()
         
         self.test_targets = list()
+
+        self.test_targets_in_folds = list()
+        self.knn_cross_val_predictions = dict()
+        self.poly_order_cross_val_predicitons = dict()
     
     def run(self):
         user_csvs = glob.glob("user_csvs/*")
@@ -40,6 +46,7 @@ class ContentBasedComparer:
             for train, test in kf.split(df):
                 train_df = df.loc[train, :].reset_index(drop=True)
                 test_df = df.loc[test, :].reset_index(drop=True)
+                self.knn_cross_val(train_df, test_df)
 
                 train_user_mean_rating = train_df["user_rating"].mean()
 
@@ -63,6 +70,8 @@ class ContentBasedComparer:
                 test_df["knn_value"] = knn_values
                 predictions = classification_model.predict(
                     test_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
+                self.poly_order_cross_val(train_df.loc[:, ["review_count", "rating", "price", "knn_value", "user_rating"]],
+                                          test_df.loc[:, ["review_count", "rating", "price", "knn_value", "user_rating"]])
                 probabilities = self.get_probabilites(classification_model,
                                                       test_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
                 self.update_test_predictions(predictions, knn_values, train_user_mean_rating, test_df, probabilities)
@@ -71,7 +80,87 @@ class ContentBasedComparer:
 
         self.show_performance_summary()
         self.plot_roc_curve()
-        self.plot_predictions_vs_targets()
+        self.plot_knn_cross_val()
+        self.plot_poly_cross_val()
+
+    def poly_order_cross_val(self, train_df, test_df):
+        if not self.do_cross_val:
+            return
+        poly_order_values = [1, 2, 3]
+        for poly_order in poly_order_values:
+            if poly_order not in self.poly_order_cross_val_predicitons.keys():
+                self.poly_order_cross_val_predicitons[poly_order] = list()
+
+            train_features = PolynomialFeatures(poly_order).fit_transform(train_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
+            train_features = [features[1:] for features in train_features]
+
+            model = LogisticRegression(max_iter=2e31)
+            model.fit(train_features, train_df["user_rating"])
+
+            test_features = PolynomialFeatures(poly_order).fit_transform(test_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
+            test_features = [features[1:] for features in test_features]
+
+            predictions = model.predict(test_features)
+            self.poly_order_cross_val_predicitons[poly_order].append(predictions.tolist())
+
+    def knn_cross_val(self, train_df, test_df):
+        if not self.do_cross_val:
+            return
+        k_values = [1, 3, 5, 7, 9, 13, 19]
+        for k in k_values:
+            if k not in self.knn_cross_val_predictions.keys():
+                self.knn_cross_val_predictions[k] = list()
+            knn_model = KNeighborsRegressor(n_neighbors=k)
+            knn_model.fit(train_df.iloc[:, 5::], train_df["user_rating"])
+
+            predictions = knn_model.predict(test_df.iloc[:, 5::])
+            self.knn_cross_val_predictions[k].append(predictions.tolist())
+
+    def plot_knn_cross_val(self):
+        if not self.do_cross_val:
+            return
+        knn_cross_val_mse = dict()
+        knn_cross_val_std = dict()
+        for k_val, fold_predictions in self.knn_cross_val_predictions.items():
+            square_errors = list()
+            for predictions, targets in zip(fold_predictions, self.test_targets_in_folds):
+                square_errors.append(mean_squared_error(targets, predictions))
+            knn_cross_val_mse[k_val] = np.mean(square_errors)
+            knn_cross_val_std[k_val] = np.std(square_errors)
+        plt.rcParams["figure.figsize"] = (9, 9)
+        plt.title("K vs MSE at knn step", size=20)
+        subplot = plt.subplot(111)
+        box = subplot.get_position()
+        subplot.set_position([box.x0, box.y0, box.width, box.height])
+        subplot.set_xlabel("k")
+        subplot.set_ylabel("MSE")
+        plt.errorbar(list(knn_cross_val_mse.keys()), list(knn_cross_val_mse.values()),
+                     yerr=list(knn_cross_val_std.values()), color="#0000ff", linewidth=3)
+        plt.legend(["points"], bbox_to_anchor=(0.9, 0.1), prop={'size': 12})
+        plt.show()
+
+    def plot_poly_cross_val(self):
+        if not self.do_cross_val:
+            return
+        poly_order_cross_val_f1 = dict()
+        poly_order_cross_val_f1_std = dict()
+        for poly_order, fold_predictions in self.poly_order_cross_val_predicitons.items():
+            f1_scores = list()
+            for predictions, targets in zip(fold_predictions, self.test_targets_in_folds):
+                f1_scores.append(f1_score(targets, predictions, average="micro"))
+            poly_order_cross_val_f1[poly_order] = np.mean(f1_scores)
+            poly_order_cross_val_f1_std[poly_order] = np.std(f1_scores)
+        plt.rcParams["figure.figsize"] = (9, 9)
+        plt.title("poly order vs f1 score", size=20)
+        subplot = plt.subplot(111)
+        box = subplot.get_position()
+        subplot.set_position([box.x0, box.y0, box.width, box.height])
+        subplot.set_xlabel("poly order")
+        subplot.set_ylabel("f1 score")
+        plt.errorbar(list(poly_order_cross_val_f1.keys()), list(poly_order_cross_val_f1.values()),
+                     yerr=list(poly_order_cross_val_f1_std.values()), color="#0000ff", linewidth=3)
+        plt.legend(["points"], bbox_to_anchor=(0.9, 0.1), prop={'size': 12})
+        plt.show()
 
     def show_performance_summary(self):
         print("\nTRAIN AVERAGE")
@@ -92,7 +181,6 @@ class ContentBasedComparer:
                       average="macro")
         print(f"\nmicro avg F1 final output: {f1_micro}")
         print(f"macro avg F1 final output: {f1_macro}")
-
 
         f1_micro = f1_score([round(prediction) for prediction in self.knn_predictions_test], self.test_targets,
                       average="micro")
@@ -135,6 +223,7 @@ class ContentBasedComparer:
         self.model_probabilities_test += probabilites
 
         self.test_targets += df["user_rating"].tolist()
+        self.test_targets_in_folds.append(df["user_rating"].tolist())
 
     def get_train_test_df(self, csv, test_proportion=0.2):
         df = pd.read_csv(csv)
@@ -146,12 +235,12 @@ class ContentBasedComparer:
         return train_df, test_df
 
     def get_knn_model(self, content_features, targets):
-        knn_model = KNeighborsRegressor(n_neighbors=5, weights="uniform", metric="cosine")
+        knn_model = KNeighborsRegressor(n_neighbors=7, weights="uniform", metric="cosine")
         knn_model.fit(content_features, targets)
         return knn_model
 
     def get_classification_model(self, features, targets):
-        model = LogisticRegression(max_iter=2e16)
+        model = LogisticRegression(max_iter=2e31)
         model.fit(features, targets)
         return model
 
@@ -174,13 +263,14 @@ class ContentBasedComparer:
         return knn_values
 
     def plot_roc_curve(self):
+        only_show_micro = True
         fp_rate_for_models = list()
         tp_rate_for_models = list()
         fp_rate_for_models.append([0, 1])
         tp_rate_for_models.append([0, 1])
         decision_boundaries = np.linspace(1.01, -0.01, 201)
         all_classes = sorted(list(set(self.test_targets)))
-        colours = ["#ff0000", "#00ff00", "#0000ff", "#f0f000", "#f000f0", "#00f0f0"]
+        colours = ["#ff0000", "#00ff00", "#f0f000", "#f000f0", "#00f0f0"]
         for label in all_classes:
             tp_rates = list()
             fp_rates = list()
@@ -216,8 +306,11 @@ class ContentBasedComparer:
         subplot.set_xlabel("fp rate")
         subplot.set_ylabel("tp rate")
 
-        for index in range(0, len(tp_rate_for_models)):
-            subplot.plot(fp_rate_for_models[index], tp_rate_for_models[index], color=colours[index], linewidth=3)
+
+        subplot.plot([0, 1], [0, 1], color="#0000ff", linewidth=3)
+        if not only_show_micro:
+            for index in range(0, len(tp_rate_for_models)):
+                subplot.plot(fp_rate_for_models[index], tp_rate_for_models[index], color=colours[index], linewidth=3)
 
         #init fpr and tpr lists
         all_fpr = np.unique(np.concatenate([fp_rate_for_models[i] for i in range(len(all_classes))]))
@@ -235,23 +328,11 @@ class ContentBasedComparer:
             macro_tpr += np.interp(all_fpr, fp_rate_for_models[i], tpr_macro)
             micro_tpr += np.interp(all_fpr, fp_rate_for_models[i], tpr_micro)
 
-        plt.plot(all_fpr, macro_tpr, color="#000080", linestyle=":", linewidth=3)
+        if not only_show_micro:
+            plt.plot(all_fpr, macro_tpr, color="#000080", linestyle=":", linewidth=3)
         plt.plot(all_fpr, micro_tpr, color="#800000", linestyle=":", linewidth=3)
-        plt.legend(["baseline"] + all_classes + ["macro avg"] + ["micro avg"], bbox_to_anchor=(0.9, 0.3), prop={'size': 12})
-        plt.show()
-
-    def plot_predictions_vs_targets(self):
-        plt.rcParams["figure.figsize"] = (9, 9)
-        plt.title("Targets vs Predictions", size=20)
-        subplot = plt.subplot(111)
-        box = subplot.get_position()
-        subplot.set_position([box.x0, box.y0, box.width, box.height])
-        subplot.set_xlabel("Prediction")
-        subplot.set_ylabel("Target")
-        plt.scatter(self.model_predictions_test, self.test_targets, color="#0000ff")
-        line = np.polyfit(self.model_predictions_test, self.test_targets, 1)
-        plt.plot(self.model_predictions_test, [line[0]*x+line[1] for x in self.model_predictions_test], color="#ff0000", linewidth=3)
-        plt.legend(["points", "line fit"], bbox_to_anchor=(0.9, 0.1), prop={'size': 12})
+        legend = ["baseline", "micro avg"] if only_show_micro else ["baseline"] + all_classes + ["macro avg", "micro avg"]
+        plt.legend(legend, bbox_to_anchor=(0.9, 0.3), prop={'size': 12})
         plt.show()
 
 
