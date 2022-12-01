@@ -11,8 +11,11 @@ from sklearn.model_selection import KFold
 import matplotlib.patches as mpatches
 from sklearn.metrics import roc_curve
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import auc
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.preprocessing import label_binarize
+from sklearn.multiclass import OneVsRestClassifier
 
 def getF1ScoreInfo(X, Y, K, F1ScoreKNN, F1ScoreKNNSTD):
     #make the model
@@ -110,7 +113,7 @@ def workOutHyperparameters(X,Y,size):
 
 
 def makeKNNModel(X,Y,size):
-    workOutHyperparameters(X,Y,size)
+    #workOutHyperparameters(X,Y,size)
 
 
     #now with selected parameters
@@ -124,6 +127,23 @@ def makeKNNModel(X,Y,size):
 
     return SelectedKNNmodel, KNNPrediction
 
+def get_micro_metrics(confus_mat):
+    tp = []
+    fp = []
+    fn = []
+    tn = []
+    ind = [0, 1, 2, 3, 4]
+    for i in ind:
+        ind_i = ind.copy()
+        ind_i.remove(i)
+        tp.append(confus_mat[i, i])
+        fp.append(sum(confus_mat[ind_i, i]))
+        fn.append(sum(confus_mat[i, ind_i]))
+        tn.append(sum(confus_mat[ind_i, ind_i]))
+    micro_acc = (sum(tp) + sum(tn))/(sum(tp) + sum(tn) + sum(fp) + sum(fn))
+    micro_prec = sum(tp)/(sum(tp) + sum(fp))
+    micro_f1 = 2*sum(tp)/(2*sum(tp) + sum(fp) + sum(fn))
+    return micro_acc, micro_prec, micro_f1
 
 def main():
 
@@ -140,8 +160,22 @@ def main():
     #train_user_mean_rating = df["user_rating"].mean()
     size = len(Y)
 
-    SelectedKNNmodel, KNNPrediction =  makeKNNModel(X,Y,size)
+    trainX, testX, trainY, testY = train_test_split(X, Y, test_size=0.3, random_state=5)
 
+    SelectedKNNmodel, KNNPrediction =  makeKNNModel(X,Y,size)
+    preds = SelectedKNNmodel.predict(PolynomialFeatures(25).fit_transform(testX))
+    con_mat = confusion_matrix(testY, preds)
+    print(con_mat)
+    acc, prec, f1 = get_micro_metrics(con_mat)
+    print(f'acc: {acc} prec: {prec} f1: {f1}')
+
+    knn_model = OneVsRestClassifier(KNeighborsClassifier(n_neighbors=25, weights='uniform'))
+    Y = label_binarize(Y, classes=[1, 2, 3, 4, 5])
+    trainX, testX, trainY, testY = train_test_split(X, Y, test_size=0.3, random_state=5)
+    prob = knn_model.fit(trainX, trainY).predict_proba(testX)
+    fpr, tpr, _ = roc_curve(testY.ravel(), prob.ravel())
+    auc_micro = auc(fpr, tpr)
+    print(auc_micro)
     #y_frequentPred = np.argmax(KNNPrediction, axis=1)
     #y_trainFreq = np.argmax(Y, axis=1)
     #print(classification_report(y_trainFreq, y_frequentPred))
