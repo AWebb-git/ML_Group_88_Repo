@@ -49,7 +49,7 @@ class ContentBasedComparer:
         for csv in user_csvs:
             df = pd.read_csv(csv)
             df = df.loc[:, (df != 0).any(axis=0)]
-            train_test = train_test_split(list(range(len(df))), test_size=0.3, shuffle=True, random_state=598021)
+            train_test = train_test_split(list(range(len(df))), test_size=0.3, random_state=5)
             train_df = df.loc[train_test[0], :].reset_index(drop=True)
             test_df = df.loc[train_test[1], :].reset_index(drop=True)
             self.knn_cross_val(train_df, test_df)
