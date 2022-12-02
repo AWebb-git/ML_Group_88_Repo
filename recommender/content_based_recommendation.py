@@ -1,7 +1,7 @@
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsRegressor
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 from sklearn.metrics import f1_score, mean_squared_error, confusion_matrix
 from sklearn.preprocessing import PolynomialFeatures
 import random
@@ -37,51 +37,75 @@ class ContentBasedComparer:
     
     def run(self):
         user_csvs = glob.glob("user_csvs/*")
-        all_users_targets = list()
-        for csv in user_csvs:
-            df = pd.read_csv(csv)
-            df = df.loc[:, (df != 0).any(axis=0)]
-            kf = KFold(n_splits=5, random_state=1, shuffle=True)
-            curr_user_targets = list()
-            for train, test in kf.split(df):
-                train_df = df.loc[train, :].reset_index(drop=True)
-                test_df = df.loc[test, :].reset_index(drop=True)
-                self.knn_cross_val(train_df, test_df)
-
-                train_user_mean_rating = train_df["user_rating"].mean()
-
-                train_content_features = train_df.iloc[:, 5::]
-                knn_model = self.get_knn_model(train_content_features, train_df["user_rating"])
-                
-                train_knn_values = self.get_knn_training_values(train_content_features, train_df["user_rating"])
-                train_df["knn_value"] = train_knn_values
-
-                classification_model = self.get_classification_model(
-                    train_df.loc[:, ["review_count", "rating", "price", "knn_value"]],
-                    train_df["user_rating"])
-
-                train_predictions = classification_model.predict(train_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
-                probabilities = self.get_probabilites(classification_model, train_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
-                self.update_train_predictions(train_predictions, train_knn_values, train_user_mean_rating, train_df, probabilities)
-
-                test_content_features = test_df.iloc[:, 5::]
-                knn_values = knn_model.predict(test_content_features)
-                knn_values = knn_values.tolist()
-                test_df["knn_value"] = knn_values
-                predictions = classification_model.predict(
-                    test_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
-                self.poly_order_cross_val(train_df.loc[:, ["review_count", "rating", "price", "knn_value", "user_rating"]],
-                                          test_df.loc[:, ["review_count", "rating", "price", "knn_value", "user_rating"]])
-                probabilities = self.get_probabilites(classification_model,
-                                                      test_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
-                self.update_test_predictions(predictions, knn_values, train_user_mean_rating, test_df, probabilities)
-                curr_user_targets += test_df["user_rating"].tolist()
-            all_users_targets += curr_user_targets
+        self.perform_cross_validation(user_csvs)
+        self.make_predictions(user_csvs)
 
         self.show_performance_summary()
         self.plot_roc_curve()
         self.plot_knn_cross_val()
         self.plot_poly_cross_val()
+
+    def make_predictions(self, user_csvs):
+        for csv in user_csvs:
+            df = pd.read_csv(csv)
+            df = df.loc[:, (df != 0).any(axis=0)]
+            train_test = train_test_split(list(range(len(df))), test_size=0.3, shuffle=True, random_state=598021)
+            train_df = df.loc[train_test[0], :].reset_index(drop=True)
+            test_df = df.loc[train_test[1], :].reset_index(drop=True)
+            self.knn_cross_val(train_df, test_df)
+
+            train_user_mean_rating = train_df["user_rating"].mean()
+
+            train_content_features = train_df.iloc[:, 5::]
+            knn_model = self.get_knn_model(train_content_features, train_df["user_rating"])
+
+            train_knn_values = self.get_knn_training_values(train_content_features, train_df["user_rating"])
+            train_df["knn_value"] = train_knn_values
+
+            classification_model = self.get_classification_model(
+                train_df.loc[:, ["review_count", "rating", "price", "knn_value"]],
+                train_df["user_rating"])
+
+            train_predictions = classification_model.predict(
+                train_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
+            probabilities = self.get_probabilites(classification_model,
+                                                  train_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
+            self.update_train_predictions(train_predictions, train_knn_values, train_user_mean_rating, train_df, probabilities)
+
+            test_content_features = test_df.iloc[:, 5::]
+            knn_values = knn_model.predict(test_content_features)
+            knn_values = knn_values.tolist()
+            test_df["knn_value"] = knn_values
+            predictions = classification_model.predict(
+                test_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
+            probabilities = self.get_probabilites(classification_model,
+                                                  test_df.loc[:, ["review_count", "rating", "price", "knn_value"]])
+            self.update_test_predictions(predictions, knn_values, train_user_mean_rating, test_df, probabilities)
+
+    def perform_cross_validation(self, user_csvs):
+        if not self.do_cross_val:
+            return
+        for csv in user_csvs:
+            df = pd.read_csv(csv)
+            df = df.loc[:, (df != 0).any(axis=0)]
+            kf = KFold(n_splits=5, random_state=1, shuffle=True)
+            for train, test in kf.split(df):
+                train_df = df.loc[train, :].reset_index(drop=True)
+                test_df = df.loc[test, :].reset_index(drop=True)
+                self.knn_cross_val(train_df, test_df)
+
+                train_content_features = train_df.iloc[:, 5::]
+                knn_model = self.get_knn_model(train_content_features, train_df["user_rating"])
+
+                train_knn_values = self.get_knn_training_values(train_content_features, train_df["user_rating"])
+                train_df["knn_value"] = train_knn_values
+
+                test_content_features = test_df.iloc[:, 5::]
+                knn_values = knn_model.predict(test_content_features)
+                knn_values = knn_values.tolist()
+                test_df["knn_value"] = knn_values
+                self.poly_order_cross_val(train_df.loc[:, ["review_count", "rating", "price", "knn_value", "user_rating"]],
+                                          test_df.loc[:, ["review_count", "rating", "price", "knn_value", "user_rating"]])
 
     def poly_order_cross_val(self, train_df, test_df):
         if not self.do_cross_val:
