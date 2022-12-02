@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import csv
 
+# Script used to plot features vs. target ouput
+
 with open('formatted_data.csv', 'r') as f:
     reader = csv.reader(f)
     data = [row for row in reader]

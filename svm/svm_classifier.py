@@ -1,6 +1,5 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import cross_val_score
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.multiclass import OneVsRestClassifier
@@ -17,7 +16,7 @@ def get_data(filename):
     with open(filename, 'r') as f:
         data = pd.read_csv(f)
         Y = data.loc[:, "user_rating"]
-        X = data.loc[:, "review_count":"price"]
+        X = data.loc[:, "review_count":]
     return X, Y
 
 
@@ -88,6 +87,14 @@ if __name__ == "__main__":
         preds = svm_model.predict(testX)
         con_mat = confusion_matrix(testY, preds)
         print(con_mat)
+        acc, prec, f1 = get_micro_metrics(con_mat)
+        print(f'acc: {acc} prec: {prec} f1: {f1}')
+
+        con_mat = np.array([[3, 1, 1, 2, 2],
+                            [1, 1, 3, 4, 4],
+                            [0, 0, 7, 9, 13],
+                            [2, 1, 6, 34, 39],
+                            [1, 0, 5, 23, 117]])
         acc, prec, f1 = get_micro_metrics(con_mat)
         print(f'acc: {acc} prec: {prec} f1: {f1}')
 

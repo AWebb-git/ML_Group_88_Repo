@@ -371,10 +371,12 @@ def get_micro_metrics(confusion_matrix):
     micro_prec = sum(tp)/(sum(tp) + sum(fp))
     micro_tpr = sum(tp)/(sum(tp) + sum(fn))
     micro_fpr = sum(fp)/(sum(fp) + sum(tn))
+    micro_f1 = micro_f1 = 2*sum(tp)/(2*sum(tp) + sum(fp) + sum(fn))
     print(f"micro_acc: {micro_acc}")
     print(f"micro_prec: {micro_prec}")
     print(f"micro_tpr: {micro_tpr}")
     print(f"micro_fpr: {micro_fpr}")
+    print(f"micro f1: {micro_f1}")
 
 def main():
     content_based_what = ContentBasedComparer()
