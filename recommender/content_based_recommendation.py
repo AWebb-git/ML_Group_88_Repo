@@ -4,7 +4,6 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.metrics import f1_score, mean_squared_error, confusion_matrix
 from sklearn.preprocessing import PolynomialFeatures
-import random
 import glob
 import numpy as np
 import matplotlib.pyplot as plt
@@ -42,8 +41,6 @@ class ContentBasedComparer:
 
         self.show_performance_summary()
         self.plot_roc_curve()
-        self.plot_knn_cross_val()
-        self.plot_poly_cross_val()
 
     def make_predictions(self, user_csvs):
         for csv in user_csvs:
@@ -106,6 +103,9 @@ class ContentBasedComparer:
                 test_df["knn_value"] = knn_values
                 self.poly_order_cross_val(train_df.loc[:, ["review_count", "rating", "price", "knn_value", "user_rating"]],
                                           test_df.loc[:, ["review_count", "rating", "price", "knn_value", "user_rating"]])
+                self.update_cross_val_predictions(test_df)
+        self.plot_poly_cross_val()
+        self.plot_knn_cross_val()
 
     def poly_order_cross_val(self, train_df, test_df):
         if not self.do_cross_val:
@@ -172,6 +172,7 @@ class ContentBasedComparer:
             f1_scores = list()
             for predictions, targets in zip(fold_predictions, self.test_targets_in_folds):
                 f1_scores.append(f1_score(targets, predictions, average="micro"))
+            print(np.mean(f1_scores))
             poly_order_cross_val_f1[poly_order] = np.mean(f1_scores)
             poly_order_cross_val_f1_std[poly_order] = np.std(f1_scores)
         plt.rcParams["figure.figsize"] = (9, 9)
@@ -247,16 +248,9 @@ class ContentBasedComparer:
         self.model_probabilities_test += probabilites
 
         self.test_targets += df["user_rating"].tolist()
-        self.test_targets_in_folds.append(df["user_rating"].tolist())
 
-    def get_train_test_df(self, csv, test_proportion=0.2):
-        df = pd.read_csv(csv)
-        test = random.sample(range(len(df)), int(len(df)*test_proportion))
-        train = list(set(range(len(df))) - set(test))
-        df = df.loc[:, (df != 0).any(axis=0)]
-        train_df = df.loc[train, :].reset_index(drop=True)
-        test_df = df.loc[test, :].reset_index(drop=True)
-        return train_df, test_df
+    def update_cross_val_predictions(self, df):
+        self.test_targets_in_folds.append(df["user_rating"].tolist())
 
     def get_knn_model(self, content_features, targets):
         knn_model = KNeighborsRegressor(n_neighbors=7, weights="uniform", metric="cosine")
