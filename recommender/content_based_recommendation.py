@@ -227,8 +227,15 @@ class ContentBasedComparer:
                             average="macro")
         print(f"\nmicro avg F1 business average rating: {f1_micro}")
         print(f"macro avg F1 business average rating: {f1_macro}")
-
+        print("model")
         get_micro_metrics(confusion_matrix(self.test_targets, self.model_predictions_test))
+        print("knn step")
+        get_micro_metrics(confusion_matrix(self.test_targets, [round(pred) for pred in self.knn_predictions_test]))
+        print("user avg")
+        get_micro_metrics(confusion_matrix(self.test_targets, [round(pred) for pred in self.user_avg_test]))
+        print("business avg")
+        get_micro_metrics(confusion_matrix(self.test_targets, [round(pred) for pred in self.business_avg_test]))
+        print(confusion_matrix(self.test_targets, self.model_predictions_test))
     
     def update_train_predictions(self, predictions, knn_values, user_mean, df, probabilities):
         self.model_predictions_train += predictions.tolist()
